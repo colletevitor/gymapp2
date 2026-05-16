@@ -89,7 +89,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
 /* Page content — respira em cima do notch e embaixo da nav */
 .page {
   flex: 1;
-  padding: calc(var(--safe-top) + 20px) 16px;
+  padding: calc(var(--safe-top) + 36px) 16px;
   padding-bottom: calc(var(--nav-height) + var(--safe-bottom) + 20px);
   overflow-y: auto;
   /* Scroll suave no iOS */
