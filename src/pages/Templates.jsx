@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useStore } from '../store/index'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Trash2, Edit2, Play, ChevronDown, ChevronUp, X, Check } from 'lucide-react'
+import { Plus, Trash2, Edit2, Play, ChevronDown, ChevronUp, X, Check, Download, Upload } from 'lucide-react'
 
 export default function Templates() {
   const navigate = useNavigate()
@@ -10,6 +10,8 @@ export default function Templates() {
   const [editing, setEditing] = useState(null)
   const [showNew, setShowNew] = useState(false)
   const [form, setForm] = useState({ name: '', exercises: [] })
+  const [importMsg, setImportMsg] = useState('')
+  const fileInputRef = useRef(null)
 
   const startEdit = (tplId) => {
     const tpl = templates.find(t => t.id === tplId)
@@ -53,14 +55,88 @@ export default function Templates() {
     navigate('/treino')
   }
 
+  const handleExport = (tpl) => {
+    const exercisesNeeded = tpl.exercises
+      .map(te => exercises.find(e => e.id === te.exerciseId))
+      .filter(Boolean)
+
+    const exportData = {
+      gymapp: true,
+      version: 2,
+      template: tpl,
+      exercises: exercisesNeeded,
+      exportedAt: new Date().toISOString(),
+    }
+
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${tpl.name.replace(/[^a-z0-9]/gi, '_')}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const handleImport = (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = (evt) => {
+      try {
+        const data = JSON.parse(evt.target.result)
+
+        if (!data.gymapp || !data.template || !data.exercises) {
+          setImportMsg('❌ Arquivo inválido.')
+          setTimeout(() => setImportMsg(''), 3000)
+          return
+        }
+
+        const state = useStore.getState()
+        data.exercises.forEach(ex => {
+          if (!state.exercises.find(e => e.id === ex.id)) {
+            state.addExercise({ ...ex })
+          }
+        })
+
+        state.addTemplate({
+          name: data.template.name,
+          exercises: data.template.exercises,
+        })
+
+        setImportMsg(`✅ Ficha "${data.template.name}" importada!`)
+        setTimeout(() => setImportMsg(''), 3000)
+      } catch {
+        setImportMsg('❌ Erro ao ler o arquivo.')
+        setTimeout(() => setImportMsg(''), 3000)
+      }
+    }
+    reader.readAsText(file)
+    e.target.value = ''
+  }
+
   const isFormOpen = showNew || editing !== null
 
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <h1 className="page-title" style={{ marginBottom: 0 }}>Fichas</h1>
-        <button className="btn btn-primary btn-sm" onClick={startNew}><Plus size={14} /> Nova</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn-ghost btn-sm" onClick={() => fileInputRef.current?.click()}>
+            <Upload size={14} /> Importar
+          </button>
+          <input ref={fileInputRef} type="file" accept=".json" onChange={handleImport} style={{ display: 'none' }} />
+          <button className="btn btn-primary btn-sm" onClick={startNew}>
+            <Plus size={14} /> Nova
+          </button>
+        </div>
       </div>
+
+      {importMsg && (
+        <div style={{ padding: '10px 14px', borderRadius: 'var(--radius-sm)', background: importMsg.startsWith('✅') ? '#c8f13515' : '#ff444415', border: `1px solid ${importMsg.startsWith('✅') ? '#c8f13530' : '#ff444430'}`, color: importMsg.startsWith('✅') ? 'var(--accent)' : 'var(--red)', fontSize: 14, marginBottom: 14 }}>
+          {importMsg}
+        </div>
+      )}
 
       {isFormOpen && (
         <div className="card" style={{ marginBottom: 16, borderColor: 'var(--accent)' }}>
@@ -139,9 +215,10 @@ export default function Templates() {
                     </div>
                   )
                 })}
-                <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+                <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
                   <button className="btn btn-primary btn-sm" onClick={() => handleStart(tpl.id)}><Play size={13} fill="currentColor" /> Iniciar</button>
                   <button className="btn btn-ghost btn-sm" onClick={() => startEdit(tpl.id)}><Edit2 size={13} /> Editar</button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => handleExport(tpl)}><Download size={13} /> Exportar</button>
                   <button className="btn btn-danger btn-sm" onClick={() => { if (confirm(`Deletar "${tpl.name}"?`)) deleteTemplate(tpl.id) }}><Trash2 size={13} /></button>
                 </div>
               </div>
